@@ -1,9 +1,9 @@
 # Note that some of the fields in this template haven't been filled in yet.
 # Please resolve any `null` fields before launching!
 
-# Follow the instructions in the README to set up ./my-copy-c4
+# Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_local: ./my-copy-c4
+data_local: ./data/c4
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 512

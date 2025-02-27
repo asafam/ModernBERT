@@ -100,8 +100,9 @@ def create_mosaic_bert_mlm(
     config = configuration_bert_module.BertConfig.from_pretrained(pretrained_model_name, **model_config)
 
     # Padding for divisibility by 8
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    print("config.vocab_size", config.vocab_size)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
 
     if pretrained_checkpoint is not None:
         model = bert_layers_module.BertForMaskedLM.from_composer(
@@ -135,8 +136,9 @@ def create_mosaic_bert_mlm(
 
     # Padding for divisibility by 8
     # We have to do it again here because wrapping by HuggingFaceModel changes it
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    print("config.vocab_size (2)", config.vocab_size)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
     hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model
@@ -270,8 +272,8 @@ def create_mosaic_bert_classification(
     config.update(unused_kwargs)
 
     # Padding for divisibility by 8
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
 
     if pretrained_checkpoint is not None:
         model = model_cls.from_composer(pretrained_checkpoint=pretrained_checkpoint, config=config)
@@ -320,8 +322,8 @@ def create_mosaic_bert_classification(
 
     # Padding for divisibility by 8
     # We have to do it again here because wrapping by HuggingFaceModel changes it
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
     hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model

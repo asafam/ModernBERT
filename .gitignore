@@ -167,3 +167,6 @@ wandb/
 
 # OS X
 .DS_Store
+
+data/c4
+data

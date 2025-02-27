@@ -29,6 +29,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizer
 from streaming.base.format import reader_from_json
 from streaming.base.spanner import Spanner
 from composer.utils import dist
+from tqdm import tqdm
 
 from transformers.tokenization_utils_base import BatchEncoding
 
@@ -92,7 +93,7 @@ def build_tokenizer(
         "model_max_length",
         int(1e30),
     )
-    print("Tokenizer model_max_length:", tokenizer.model_max_length)
+    print("tokenizer.model_max_length =", tokenizer.model_max_length)
 
     return tokenizer
 
@@ -501,6 +502,11 @@ class NoStreamingDataset(Dataset):
         if "input_ids" in sample:
             for k in list(sample.keys()):
                 if isinstance(sample[k], np.ndarray):
+                    if sample[k][0] != 50281:
+                        sample[k] = np.insert(sample[k], 0, 50281)[: self.max_seq_len]
+                    if sample[k][-1] != 50282:
+                        sample[k] = sample[k][: self.max_seq_len - 1]
+                        sample[k] = np.append(sample[k], 50282)
                     sample[k] = sample[k][: self.max_seq_len]
                 else:
                     del sample[k]
@@ -528,7 +534,10 @@ if __name__ == "__main__":
         "--remote_path", type=str, default=None, help="the path to the remote copy to stream from (optional)"
     )
     parser.add_argument("--split", type=str, default="val", help="which split of the dataset to use")
-    parser.add_argument("--max_seq_len", type=int, default=32, help="max sequence length to test")
+    parser.add_argument("--max_seq_len", type=int, default=8192, help="max sequence length to test")
+    parser.add_argument("--device_batch_size", type=int, default=4096, help="batch size for the dataloader")
+    parser.add_argument("--device_microbatch_size", type=int, default=512, help="microbatch size for the dataloader")
+    parser.add_argument("--print_interval", type=int, default=100, help="print interval for batches")
 
     args = parser.parse_args()
 
@@ -552,8 +561,8 @@ if __name__ == "__main__":
         "pin_memory": True,
     }
     cfg = om.create(cfg)
-    device_batch_size = 256
-    device_microbatch_size = 64
+    device_batch_size = args.device_batch_size
+    device_microbatch_size = args.device_microbatch_size
 
     tokenizer_cfg = {"name": args.tokenizer, "kwargs": {}}
     tokenizer_cfg["kwargs"] = {"model_max_length": args.max_seq_len}
@@ -562,11 +571,9 @@ if __name__ == "__main__":
 
     loader = build_text_dataloader(cfg, tokenizer, device_batch_size, device_microbatch_size)
     tokenizer = loader.dataset.tokenizer  # type: ignore
-    for batch_ix, batch in enumerate(islice(loader, 5)):
-        print("\n")
-        print("#" * 20, f"Batch {batch_ix}", "#" * 20)
-        for k, v in batch.items():
-            print(k, v.shape, v.dtype)
-        for sample_ix, token_sample in enumerate(batch["input_ids"]):
-            print("-" * 20, f" Sample {sample_ix} ", "-" * 20)
-            print(tokenizer.decode(token_sample))
+    total_tokens = 0
+    for batch_ix, batch in tqdm(enumerate(loader), desc="Batches"):
+        total_tokens += batch["attention_mask"].sum().item()
+        if batch_ix % args.print_interval == 0 or batch_ix in [0, 1, 10, 100, len(loader) - 1]:
+            print(f"Batch {batch_ix:,} / {len(loader):,}")
+            print(f"Total tokens = {total_tokens:,}")

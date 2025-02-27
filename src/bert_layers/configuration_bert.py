@@ -73,7 +73,8 @@ class FlexBertConfig(TransformersBertConfig):
         head_pred_norm: bool = True,
         pooling_type: str = "cls",
         rotary_emb_dim: int | None = None,
-        rotary_emb_base: float = 10000.0,
+        rotary_emb_base_local: float = 10000.0,
+        rotary_emb_base: float = 160000.0,
         rotary_emb_scale_base=None,
         rotary_emb_interleaved: bool = False,
         use_fa2: bool = True,
@@ -132,7 +133,8 @@ class FlexBertConfig(TransformersBertConfig):
             head_pred_norm (bool): Normalize prediction head output.
             pooling_type (str): Pooling type.
             rotary_emb_dim (int | None): Rotary embedding dimension.
-            rotary_emb_base (float): Rotary embedding base.
+            rotary_emb_base (float): Rotary embedding base for attention.
+            rotary_emb_base_local (float): Rotary embedding base for local attention.
             rotary_emb_scale_base (float): Rotary embedding scale base.
             rotary_emb_interleaved (bool): Use interleaved rotary embeddings.
             use_fa2 (bool): Use FlashAttention2. Requires flash_attn package.
@@ -150,7 +152,7 @@ class FlexBertConfig(TransformersBertConfig):
             deterministic_fa2 (bool): Use Flash Attention 2 deterministic mode. This is slower then the default non-deterministic mode.
             sliding_window (int): Use sliding window attention with window size `n`. -1 to disable. Window size split between the left and right context. Only supports FA2.
             global_attn_every_n_layers (int): Use global attention every `n` layers and sliding window for the rest. -1 to disable.
-            local_attn_rotary_emb_base (float): Rotary embedding base for local attention. -1 to disable and use `rotary_emb_base` for all layers.
+            local_attn_rotary_emb_base (float): Rotary embedding base for local attention. -1 to disable and use `rotary_emb_base_local` for all layers.
             local_attn_rotary_emb_dim (int | None): Rotary embedding dimension for local attention. None to disable and use `rotary_emb_dim` for all layers.
             unpad_embeddings (bool): Unpad inputs before the embedding layer.
             pad_logits (bool): Pad logits after the calculating the loss.
@@ -190,6 +192,7 @@ class FlexBertConfig(TransformersBertConfig):
         self.pooling_type = pooling_type
         self.rotary_emb_dim = rotary_emb_dim
         self.rotary_emb_base = rotary_emb_base
+        self.rotary_emb_base_local = rotary_emb_base_local
         self.rotary_emb_scale_base = rotary_emb_scale_base
         self.rotary_emb_interleaved = rotary_emb_interleaved
         self.use_fa2 = use_fa2

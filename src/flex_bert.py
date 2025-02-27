@@ -259,8 +259,8 @@ def create_flex_bert_mlm(
         assert not config.final_norm, "Final norm should not be used with postnorm attention"
 
     # Padding for divisibility by 8
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
 
     if pretrained_checkpoint is not None:
         model = bert_layers_module.FlexBertForMaskedLM.from_composer(
@@ -305,8 +305,8 @@ def create_flex_bert_mlm(
 
     # Padding for divisibility by 8
     # We have to do it again here because wrapping by HuggingFaceModel changes it
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
     hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model
@@ -431,8 +431,8 @@ def create_flex_bert_classification(
     config = configuration_bert_module.FlexBertConfig.from_pretrained(pretrained_model_name, **model_config)
 
     # Padding for divisibility by 8
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
 
     if pretrained_checkpoint is not None:
         model = model_cls.from_composer(pretrained_checkpoint=pretrained_checkpoint, config=config)
@@ -479,8 +479,8 @@ def create_flex_bert_classification(
 
     # Padding for divisibility by 8
     # We have to do it again here because wrapping by HuggingFaceModel changes it
-    if config.vocab_size % 8 != 0:
-        config.vocab_size += 8 - (config.vocab_size % 8)
+    if config.vocab_size % 64 != 0:
+        config.vocab_size += 64 - (config.vocab_size % 64)
     hf_model.model.resize_token_embeddings(config.vocab_size)
 
     return hf_model

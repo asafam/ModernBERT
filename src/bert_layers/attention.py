@@ -744,15 +744,17 @@ class FlexBertUnpadRopeAttention(FlexBertAttentionBase):
                 raise ValueError("global_attn_every_n_layers` requires `sliding_window` to be set")
             if layer_id % config.global_attn_every_n_layers != 0:
                 self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+                rotary_base = config.rotary_emb_base_local
             else:
                 self.sliding_window = (-1, -1)
+                rotary_base = config.rotary_emb_base
         else:
             self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+            rotary_base = config.rotary_emb_base
 
         if config.rotary_emb_dim is None:
             config.rotary_emb_dim = self.attn_head_size
 
-        rotary_base = config.rotary_emb_base
         rotary_dim = config.rotary_emb_dim
         if self.sliding_window != (-1, -1):
             if config.local_attn_rotary_emb_base != -1:
@@ -968,15 +970,17 @@ class FlexBertPaddedRopeAttention(FlexBertAttentionBase):
                 raise ValueError("global_attn_every_n_layers` requires `sliding_window` to be set")
             if layer_id % config.global_attn_every_n_layers != 0:
                 self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+                rotary_base = config.rotary_emb_base_local
             else:
                 self.sliding_window = (-1, -1)
+                rotary_base = config.rotary_emb_base_global
         else:
             self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+            rotary_base = config.rotary_emb_base_global
 
         if config.rotary_emb_dim is None:
             config.rotary_emb_dim = self.attn_head_size
 
-        rotary_base = config.rotary_emb_base
         rotary_dim = config.rotary_emb_dim
         if self.sliding_window != (-1, -1):
             if config.local_attn_rotary_emb_base != -1:
@@ -1117,15 +1121,17 @@ class FlexBertUnpadRopeParallelAttention(FlexBertAttentionBase):
                 raise ValueError("global_attn_every_n_layers` requires `sliding_window` to be set")
             if layer_id % config.global_attn_every_n_layers != 0:
                 self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+                rotary_base = config.rotary_emb_base_local
             else:
                 self.sliding_window = (-1, -1)
+                rotary_base = config.rotary_emb_base
         else:
             self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+            rotary_base = config.rotary_emb_base
 
         if config.rotary_emb_dim is None:
             config.rotary_emb_dim = self.attn_head_size
 
-        rotary_base = config.rotary_emb_base
         rotary_dim = config.rotary_emb_dim
         if self.sliding_window != (-1, -1):
             if config.local_attn_rotary_emb_base != -1:
@@ -1300,15 +1306,17 @@ class FlexBertPaddedRopeParallelAttention(FlexBertAttentionBase):
                 raise ValueError("global_attn_every_n_layers` requires `sliding_window` to be set")
             if layer_id % config.global_attn_every_n_layers != 0:
                 self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+                rotary_base = config.rotary_emb_base_local
             else:
                 self.sliding_window = (-1, -1)
+                rotary_base = config.rotary_emb_base
         else:
             self.sliding_window = (config.sliding_window // 2, config.sliding_window // 2)
+            rotary_base = config.rotary_emb_base
 
         if config.rotary_emb_dim is None:
             config.rotary_emb_dim = self.attn_head_size
 
-        rotary_base = config.rotary_emb_base
         rotary_dim = config.rotary_emb_dim
         if self.sliding_window != (-1, -1):
             if config.local_attn_rotary_emb_base != -1:
