@@ -410,7 +410,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
     optimizer = build_optimizer(cfg.optimizer, model)
 
     # Scheduler
-    scheduler = build_scheduler(cfg.scheduler)
+    scheduler = build_scheduler(cfg.scheduler) if cfg.scheduler else None
 
     # Loggers
     loggers = [build_logger(name, logger_cfg) for name, logger_cfg in cfg.get("loggers", {}).items()]
