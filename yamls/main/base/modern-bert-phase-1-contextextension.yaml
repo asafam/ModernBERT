@@ -100,7 +100,7 @@ eval_loader:
 # Optimization
 optimizer:
   name: decoupled_stableadamw
-  lr: 5.0e-4 # Peak learning rate
+  lr: 3.0e-4 # Peak learning rate
   betas:
   - 0.9
   - 0.98
