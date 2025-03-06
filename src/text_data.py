@@ -546,6 +546,7 @@ if __name__ == "__main__":
             "shuffle": False,
             "max_seq_len": args.max_seq_len,
             "keep_zip": True,  # in case we need compressed files after testing
+            "mlm_probability": 0.3,
         },
         "drop_last": False,
         "num_workers": 4,

@@ -7,11 +7,11 @@ data_local: ./data/c4
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 8192
-tokenizer_name: bert-base-uncased # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
+tokenizer_name: answerdotai/ModernBERT-base # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
-run_name: modern-bert-base-phase-0pretrain
+run_name: modern-bert-base-phase-2-contextextension
 
 # Model
 model:

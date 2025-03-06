@@ -277,6 +277,7 @@ def create_flex_bert_mlm(
         tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer_name)
     else:
         tokenizer = transformers.AutoTokenizer.from_pretrained(pretrained_model_name)
+    tokenizer.model_max_length = config.max_position_embeddings # Set a new max token length
 
     metrics = [MaskedAccuracy(ignore_index=-100)]
 
