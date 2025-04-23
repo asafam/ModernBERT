@@ -11,7 +11,7 @@ tokenizer_name: answerdotai/ModernBERT-base # switch to bert tokenizer until we 
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
-run_name: modern-bert-base-phase-0-pretrain
+run_name: modern-bert-base-phase-0.1-pretrain
 
 # Model
 model:
@@ -71,6 +71,8 @@ model:
     pad_logits: false
     compile_model: true
 
+  
+
 # Dataloaders
 train_loader:
   name: text
@@ -116,7 +118,7 @@ optimizer:
 
 # algorithms:
 
-max_duration: 286720000sp # Subsample the training data for ~275M samples
+max_duration: 9 # number of epochs
 eval_interval: 2000ba
 global_train_batch_size: 4096
 
@@ -141,19 +143,19 @@ algorithms:
 
 callbacks:
   speed_monitor:
-    window_size: 10
+    window_size: 500
   lr_monitor: {}
 
 # (Optional) W&B logging
-# loggers:
-#   wandb:
-#     project:      # Fill this in
-#     entity:       # Fill this in
+loggers:
+  wandb:
+    project: HebModernBERT-phase0.1
+    entity: asafam
 
 # (Optional) Checkpoint to local filesystem or remote object store
-# save_interval: 3500ba
-# save_num_checkpoints_to_keep: 1  # Important, this cleans up checkpoints saved to DISK
-# save_folder:      # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_interval: 3500ba
+save_num_checkpoints_to_keep: 10  # Important, this cleans up checkpoints saved to DISK
+save_folder: checkpoints/{run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
 
 # (Optional) Load from local filesystem or remote object store to
 # start from an existing model checkpoint;
