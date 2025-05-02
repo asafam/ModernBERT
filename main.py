@@ -45,7 +45,10 @@ from src.callbacks.log_grad_norm import LogGradNorm
 from src.callbacks.packing_efficiency import PackingEfficency
 from src.callbacks.scheduled_gc import ScheduledGarbageCollector
 from src.scheduler import CosineInverseSqrtScheduler, OneMinusSqrtScheduler, WarmupStableDecayScheduler
-from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batch
+from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batchfrom dotenv import load_dotenv
+
+# Load environment variables from .env file in the current directory
+load_dotenv()
 
 
 def update_batch_size_info(cfg: DictConfig):
