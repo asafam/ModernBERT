@@ -251,6 +251,7 @@ def create_flex_bert_mlm(
         model_config = OmegaConf.to_container(model_config, resolve=True)
 
     config = configuration_bert_module.FlexBertConfig.from_pretrained(pretrained_model_name, **model_config)
+    # config = configuration_bert_module.FlexBertConfig(**model_config)
 
     if "prenorm" in config.bert_layer:
         assert config.final_norm, "Final norm must be used with prenorm attention"

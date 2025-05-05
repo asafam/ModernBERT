@@ -3,11 +3,11 @@
 
 # Follow the instructions in the README to set up ./data/c4
 # Or point data paths to your remote C4 dataset
-data_local: ./data/c4
+data_local: ./data/hebrewmodernbert/v20250428
 data_remote: # If blank, files must be present in data_local
 
 max_seq_len: 1024
-tokenizer_name: answerdotai/ModernBERT-base # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
+tokenizer_name: tokenizer # switch to bert tokenizer until we add [MASK] token to the llama tokenizer meta-llama/Llama-2-7b-hf
 mlm_probability: 0.3 # FlexBERT should use 30% masking for optimal performance
 
 # Run Name
@@ -17,7 +17,8 @@ run_name: modern-bert-base-phase-0.1-pretrain
 model:
   name: flex_bert
   recompute_metric_loss: false # recompute metric loss, use if passing label_smoothing to record non-label-smoothed loss as a metric
-  pretrained_model_name: ${tokenizer_name}
+  pretrained_model_name: bert-base-uncased #${tokenizer_name}
+  # pretrained_checkpoint: checkpoints/modern-bert-base-phase-0.1-pretrain/ckpt_v20250501/ep0-ba10500-rank0.pt # If set, will load from this checkpoint instead of training from scratch
   tokenizer_name: ${tokenizer_name}
   # FlexBERT 'base' generally uses the default architecture values from the Hugging Face BertConfig object
   # Note: if using the pretrained_checkpoint argument to create a model from an existing checkpoint, make sure
@@ -70,8 +71,7 @@ model:
     unpad_embeddings: true
     pad_logits: false
     compile_model: true
-
-  
+    vocab_size: 100000  
 
 # Dataloaders
 train_loader:
@@ -92,7 +92,7 @@ eval_loader:
   dataset:
     local: ${data_local}
     remote: ${data_remote}
-    split: val
+    split: validation
     tokenizer_name: ${tokenizer_name}
     max_seq_len: ${max_seq_len}
     shuffle: false
@@ -123,13 +123,13 @@ eval_interval: 2000ba
 global_train_batch_size: 4096
 
 # System
-seed: 17
-device_train_microbatch_size: 128
+seed: 42
+device_train_microbatch_size: 160
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
 global_eval_batch_size: 256
-device_eval_microbatch_size: 64
+device_eval_microbatch_size: 128
 
 # Logging
 progress_bar: false

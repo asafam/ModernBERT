@@ -45,7 +45,8 @@ from src.callbacks.log_grad_norm import LogGradNorm
 from src.callbacks.packing_efficiency import PackingEfficency
 from src.callbacks.scheduled_gc import ScheduledGarbageCollector
 from src.scheduler import CosineInverseSqrtScheduler, OneMinusSqrtScheduler, WarmupStableDecayScheduler
-from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batchfrom dotenv import load_dotenv
+from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batch
+from dotenv import load_dotenv
 
 # Load environment variables from .env file in the current directory
 load_dotenv()
@@ -356,6 +357,7 @@ def init_from_checkpoint(cfg: DictConfig, new_model: nn.Module):
 
     if isinstance(pretrained_cfg.model.model_config, DictConfig):
         model_config = OmegaConf.to_container(pretrained_cfg.model.model_config, resolve=True)
+
     pretrained_config = FlexBertConfig.from_pretrained(pretrained_cfg.model.pretrained_model_name, **model_config)
 
     init_mlm_model_from_pretrained(
@@ -465,7 +467,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         load_weights_only=cfg.get("load_weights_only", False),
         python_log_level=cfg.get("python_log_level", None),
         autoresume=cfg.get("autoresume", None),
-        fsdp_config=cfg.get("fsdp_config", None),
+        # fsdp_config=cfg.get("fsdp_config", None),
         compile_config=cfg.get("compile_config", None),
     )
 
