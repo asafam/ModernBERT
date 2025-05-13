@@ -22,7 +22,9 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 from composer import Evaluator, Trainer, algorithms
 from composer.callbacks import LRMonitor, MemoryMonitor, OptimizerMonitor, RuntimeEstimator, SpeedMonitor
 from composer.core import DataSpec
-from composer.loggers import WandBLogger
+from composer.loggers import WandBLogger, FileLogger
+from composer.profiler import JSONTraceHandler, cyclic_schedule
+from composer.profiler.profiler import Profiler
 from composer.optim import DecoupledAdamW
 from composer.optim.scheduler import (
     ConstantWithWarmupScheduler,
@@ -33,7 +35,7 @@ from composer.utils import dist, reproducibility
 from composer.utils.checkpoint import _ensure_valid_checkpoint
 from omegaconf import DictConfig, OmegaConf
 from omegaconf import OmegaConf as om
-from torch.optim import AdamW
+from torch.optim import AdamW, SGD
 
 import src.flex_bert as flex_bert_module
 import src.hf_bert as hf_bert_module
@@ -46,11 +48,12 @@ from src.callbacks.packing_efficiency import PackingEfficency
 from src.callbacks.scheduled_gc import ScheduledGarbageCollector
 from src.scheduler import CosineInverseSqrtScheduler, OneMinusSqrtScheduler, WarmupStableDecayScheduler
 from src.sequence_packer import get_num_samples_in_packed_batch, split_packed_batch
-from dotenv import load_dotenv
+# from utils import configure_h200_environment
+# from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables from .env file in the current directory
-load_dotenv()
-
+# load_dotenv()
 
 def update_batch_size_info(cfg: DictConfig):
     global_batch_size, device_microbatch_size = cfg.global_train_batch_size, cfg.device_train_microbatch_size
@@ -75,7 +78,7 @@ def update_batch_size_info(cfg: DictConfig):
     # Safely set `device_eval_microbatch_size` if not provided by user
     if "device_eval_microbatch_size" not in cfg:
         if cfg.device_train_microbatch_size == "auto":
-            cfg.device_eval_microbatch_size = 1
+            cfg.device_eval_microbatch_size = 100
         else:
             cfg.device_eval_microbatch_size = cfg.device_train_microbatch_size
 
@@ -159,7 +162,8 @@ def build_callback(name, kwargs):
         return MemoryMonitor()
     elif name == "speed_monitor":
         return SpeedMonitor(
-            window_size=kwargs.get("window_size", 1), gpu_flops_available=kwargs.get("gpu_flops_available", None)
+            window_size=kwargs.get("window_size", 1), 
+            gpu_flops_available=kwargs.get("gpu_flops_available", None)
         )
     elif name == "runtime_estimator":
         return RuntimeEstimator()
@@ -185,8 +189,29 @@ def build_callback(name, kwargs):
 def build_logger(name, kwargs):
     if name == "wandb":
         return WandBLogger(**kwargs)
+    elif name == "file":
+        return FileLogger(**kwargs)
     else:
         raise ValueError(f"Not sure how to build logger: {name}")
+    
+
+def build_profiler(kwargs):
+    if kwargs is None:
+        return None
+    
+    profiler = Profiler(
+        trace_handlers=[JSONTraceHandler(folder=kwargs.get("composer_trace_dir"), overwrite=True)],
+        schedule=cyclic_schedule(
+            wait=0,
+            warmup=1,
+            active=4,
+            repeat=1,
+        ),
+        torch_prof_folder=kwargs.get("torch_trace_dir"),
+        torch_prof_overwrite=True,
+        torch_prof_memory_filename=None,
+    )
+    return profiler
 
 
 def build_scheduler(cfg):
@@ -261,6 +286,11 @@ def build_optimizer(cfg, model):
             weight_decay=cfg.weight_decay,
             decouple_lr=True,
         )
+    elif cfg.name == "sgd":
+        return SGD(
+            params,
+            lr=cfg.lr,
+        )
     else:
         raise ValueError(f"Not sure how to build optimizer: {cfg.name}")
 
@@ -280,7 +310,7 @@ def build_dataloader(
     num_samples_in_batch_fn = None
     num_tokens_in_batch_fn = None
 
-    if cfg.name == "text":
+    if cfg.get("name") == "text":
         data_loader = text_data_module.build_text_dataloader(
             cfg,
             tokenizer,
@@ -377,6 +407,13 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
     # Get batch size info
     cfg = update_batch_size_info(cfg)
 
+    # Step 2: Create a unique run_name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    cfg.timestamp = timestamp
+
+    resolved_config = OmegaConf.to_container(cfg, resolve=True)
+    cfg = OmegaConf.create(resolved_config)
+
     # Build Model
     print("Initializing model...")
     model = build_model(cfg.model)
@@ -420,8 +457,159 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
     # Loggers
     loggers = [build_logger(name, logger_cfg) for name, logger_cfg in cfg.get("loggers", {}).items()]
 
+    # Profilers
+    profiler = build_profiler(cfg.get("profiler", None))
+
     # Callbacks
     callbacks = [build_callback(name, callback_cfg) for name, callback_cfg in cfg.get("callbacks", {}).items()]
+
+    import time
+    from composer.core import Callback, State, Event
+    from composer.loggers import Logger
+
+    class BatchPhaseTimer(Callback):
+        def __init__(self):
+            self._times = {}
+            self._migrated = False
+
+        def before_forward(self, state: State, logger: Logger):
+            self._times['forward_start'] = time.time()
+
+            start = self._times.get('dataloader_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['forward_start'] - start
+                logger.log_metrics({"timing/dataloader_to_forward": duration}, step=step)
+
+        def after_forward(self, state: State, logger: Logger):
+            self._times['forward_end'] = time.time()
+            start = self._times.get('forward_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['forward_end'] - start
+                logger.log_metrics({"timing/forward": duration}, step=step)
+
+        def before_backward(self, state: State, logger: Logger):
+            self._times['backward_start'] = time.time()
+
+        def after_backward(self, state: State, logger: Logger):
+            self._times['backward_end'] = time.time()
+            start = self._times.get('backward_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['backward_end'] - start
+                logger.log_metrics({"timing/backward": duration}, step=step)
+
+            # model_device = next(state.model.parameters()).device
+            # if not self._migrated:
+            #     optimizer = state.optimizers[0]
+            #     for state_dict in optimizer.state.values():
+            #         for k, v in state_dict.items():
+            #             # if isinstance(v, torch.Tensor) and v.device != model_device:
+            #             state_dict[k] = v.to(model_device)
+            #             print(f"[OptimizerStateFix] Moved '{k}' to {model_device}")
+            #             self._migrated = True
+
+            # messages = []
+            # for param_id, state_dict in state.optimizers[0].state.items():
+            #     for k, v in state_dict.items():
+            #         if isinstance(v, torch.Tensor):
+            #             messages.append(f"param {param_id} state '{k}' → {v.device}")
+            #             print(f"[Step {state.timestamp.batch.value}] Optimizer state '{k}' on device: {v.device}")
+
+                        # if v.device != model_device: 
+                        #     state_dict[k] = v.to(model_device)
+                            # print(f"[Step {state.timestamp.batch.value}] Optimizer state '{k}' moved to device: {state_dict[k].device}")
+                # break  # just inspect first param
+
+            # if messages:
+            #     logger.log_hyperparameters({"optimizer_state_devices": messages})
+
+        def before_dataloader(self, state, logger):
+            self._times['dataloader_start'] = time.time()
+
+        def after_dataloader(self, state, logger):
+            self._times['dataloader_end'] = time.time()
+            start = self._times.get('dataloader_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['dataloader_end'] - start
+                logger.log_metrics({"timing/dataloader": duration}, step=step)
+
+        def before_loss(self, state, logger):
+            self._times['loss_start'] = time.time()
+        
+        def after_loss(self, state, logger):
+            self._times['loss_end'] = time.time()
+            start = self._times.get('loss_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['loss_end'] - start
+                logger.log_metrics({"timing/loss": duration}, step=step)
+
+        def before_load(self, state, logger):
+            self._times['load_start'] = time.time()
+
+        def after_load(self, state, logger):
+            self._times['load_end'] = time.time()
+            start = self._times.get('load_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['load_end'] - start
+                logger.log_metrics({"timing/load": duration}, step=step)
+
+        def before_train_batch(self, state, logger):
+            torch.cuda.synchronize()
+            self._times['train_batch_start'] = time.time()
+
+        def after_train_batch(self, state: State, logger: Logger):
+            torch.cuda.synchronize()
+            self._times['train_batch_end'] = time.time()
+            start = self._times.get('train_batch_start', None)
+            if start:
+                step = state.timestamp.batch.value
+                duration = self._times['train_batch_end'] - start
+                logger.log_metrics({"timing/train_batch": duration}, step=step)
+
+            start = self._times.get('backward_end', None)
+            if start:
+                duration = time.time() - start
+                step = state.timestamp.batch.value
+                logger.log_metrics({"timing/post_backward_to_batch_sec": duration}, step=step)
+
+            start = self._times.get('loss_end', None)
+            if start:
+                duration = time.time() - start
+                step = state.timestamp.batch.value
+                logger.log_metrics({"timing/post_loss_to_batch_sec": duration}, step=step)
+
+            start = self._times.get('forward_end', None)
+            if start:
+                duration = time.time() - start
+                step = state.timestamp.batch.value
+                logger.log_metrics({"timing/post_forward_to_batch_sec": duration}, step=step)
+
+            start = self._times.get('dataloader_end', None)
+            if start:
+                duration = time.time() - start
+                step = state.timestamp.batch.value
+                logger.log_metrics({"timing/post_dataloader_to_batch_sec": duration}, step=step)
+
+            start = self._times.get('load_end', None)
+            if start:
+                duration = time.time() - start
+                step = state.timestamp.batch.value
+                logger.log_metrics({"timing/post_load_to_batch_sec": duration}, step=step)
+
+        def fit_start(self, state, logger):
+            print("Model is on:", next(state.model.parameters()).device)
+            for state_tensor in state.optimizers[0].state.values():
+                for v in state_tensor.values():
+                    if isinstance(v, torch.Tensor):
+                        print("Optimizer state device:", v.device)
+                        break
+                break
+    # callbacks.append(BatchPhaseTimer())
 
     # Algorithms
     if (
@@ -436,6 +624,9 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
 
     if cfg.get("run_name") is None:
         cfg.run_name = os.environ.get("COMPOSER_RUN_NAME", "bert")
+
+    # Set up environment for H200
+    # configure_h200_environment()
 
     # Build the Trainer
     trainer = Trainer(
@@ -457,7 +648,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         loggers=loggers,
         callbacks=callbacks,
         precision=cfg.precision,
-        device=cfg.get("device", None),
+        device=cfg.get("device", "gpu" if torch.cuda.is_available() else "cpu"),
         device_train_microbatch_size=cfg.get("device_train_microbatch_size", "auto"),
         save_folder=cfg.get("save_folder", None),
         save_interval=cfg.get("save_interval", "1000ba"),
@@ -469,6 +660,7 @@ def main(cfg: DictConfig, return_trainer: bool = False, do_train: bool = True) -
         autoresume=cfg.get("autoresume", None),
         # fsdp_config=cfg.get("fsdp_config", None),
         compile_config=cfg.get("compile_config", None),
+        profiler=profiler,
     )
 
     print("Logging config...")

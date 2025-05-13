@@ -26,6 +26,9 @@ model:
   model_config:
     num_attention_heads: 12 # bert-base default
     num_hidden_layers: 22 # bert-base default
+    hidden_size: 768
+    intermediate_size: 1152
+    layer_norm_eps: 1e-5
     attention_layer: rope
     attention_probs_dropout_prob: 0.0
     attn_out_bias: false
@@ -39,7 +42,7 @@ model:
     loss_function: fa_cross_entropy
     loss_kwargs:
       reduction: mean
-    max_position_embeddings: 1024
+    max_position_embeddings: ${max_seq_len}
     mlp_dropout_prob: 0.0
     mlp_in_bias: false
     mlp_layer: mlp
@@ -70,8 +73,9 @@ model:
     global_attn_every_n_layers: 3
     unpad_embeddings: true
     pad_logits: false
-    compile_model: true
-    vocab_size: 100000  
+    compile_model: false #true
+    vocab_size: 100000
+    type_vocab_size: 1
 
 # Dataloaders
 train_loader:
@@ -98,12 +102,12 @@ eval_loader:
     shuffle: false
     mlm_probability: 0.15 # We always evaluate at 15% masking for consistent comparison
   drop_last: false
-  num_workers: 8
+  num_workers: 24
 
 # Optimization
 scheduler:
   name: linear_decay_with_warmup
-  t_warmup: 0.06dur # Warmup to the full LR for 6% of the training duration
+  t_warmup: 0.06dur # Warmup for 6% of the training duration ~50B tokens
   alpha_f: 0.02 # Linearly decay to 0.02x the full LR by the end of the training duration
 
 optimizer:
@@ -118,13 +122,13 @@ optimizer:
 
 # algorithms:
 
-max_duration: 9 # number of epochs
-eval_interval: 2000ba
-global_train_batch_size: 4096
+max_duration: 425_000_000_000tok
+eval_interval: 10000ba
 
 # System
-seed: 42
-device_train_microbatch_size: 160
+seed: 17
+global_train_batch_size: 4096 # 26 * 160 microbatches / 8 Gpu 
+device_train_microbatch_size: 128
 # device_train_microbatch_size: auto
 precision: amp_bf16
 
@@ -132,9 +136,9 @@ global_eval_batch_size: 256
 device_eval_microbatch_size: 128
 
 # Logging
-progress_bar: false
-log_to_console: true
-console_log_interval: 1ba
+progress_bar: true # was false
+log_to_console: false # was true
+console_log_interval: 10ba
 
 algorithms:
   gradient_clipping:
@@ -143,7 +147,7 @@ algorithms:
 
 callbacks:
   speed_monitor:
-    window_size: 500
+    window_size: 50
   lr_monitor: {}
 
 # (Optional) W&B logging
@@ -152,10 +156,15 @@ loggers:
     project: HebModernBERT-phase0.1
     entity: asafam
 
+# (Optional) Profiler
+# profiler:
+#   composer_trace_dir: profiler/${run_name}/${timestamp}/composer_profiler
+#   torch_trace_dir:  profiler/${run_name}/${timestamp}/torch_profiler
+
 # (Optional) Checkpoint to local filesystem or remote object store
 save_interval: 3500ba
 save_num_checkpoints_to_keep: 10  # Important, this cleans up checkpoints saved to DISK
-save_folder: checkpoints/{run_name}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
+save_folder: checkpoints/${run_name}/${timestamp}/ckpt    # e.g. './{run_name}/ckpt' (local) or 's3://mybucket/mydir/{run_name}/ckpt' (remote)
 
 # (Optional) Load from local filesystem or remote object store to
 # start from an existing model checkpoint;

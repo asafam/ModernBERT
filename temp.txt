@@ -1,0 +1,2 @@
+Killing training processes
+Waiting up to 30 seconds for all training processes to terminate. Press Ctrl-C to exit immediately.

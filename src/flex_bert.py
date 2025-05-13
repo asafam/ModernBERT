@@ -295,7 +295,7 @@ def create_flex_bert_mlm(
     eval_metrics = copy.deepcopy(metrics)
     if disable_train_metrics:
         metrics = None
-
+    
     hf_model = EfficientHuggingFaceModel(
         model=model,
         tokenizer=tokenizer,
